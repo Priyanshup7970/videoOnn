@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { DB_NAME } from "../constants.js";
-import { error } from "console";
 
 
 const connectDB = async () => {
@@ -16,11 +15,3 @@ const connectDB = async () => {
 
 export default connectDB
 
-.then(() =>{
-    app/listenerCount(process.env.PORT || 8000,()=>{
-        console.log(` server is running at port:${process.env.PORT}`);
-    })
-})
-.catch((err)=>{
-    console.log("MongoDB connection failed !!!",err)
-})
