@@ -102,10 +102,13 @@ const loginUser = asyncHandler(async ( req,res) =>{
     // access and refresh token
     // send cookies
     //successfully login
-    const {email,usename,password} = req.body
+    const {email,username,password} = req.body
 
-    if(!username || !email) {
+    if(!username && !email) {
         throw new ApiError(400,"username or email required")
+    }
+    if (!password) {
+        throw new ApiError(400, "Password is required");
     }
 
     const user = await User.findOne({
@@ -124,7 +127,7 @@ const loginUser = asyncHandler(async ( req,res) =>{
     const {accessToken,refreshToken} = await generateAccessAndRefreshToken(user._id)
 
     const loggedInUser = await User.findById(user._id).
-    select("-passwrord -refreshToken")
+    select("-password -refreshToken")
 
     const options = {
         httpOnly: true,
@@ -173,7 +176,9 @@ const logoutUser = asyncHandler(async(req,res) => {
     await User.findByIdAndUpdate(
         req.user._id,
         { 
-            $set: { refreshToken: undefined}
+            $unset:{ 
+                refreshToken: 1 // unset operator to remove the field from document
+            }
         },
         
         {
