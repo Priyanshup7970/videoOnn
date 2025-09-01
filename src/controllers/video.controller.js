@@ -261,6 +261,31 @@ const publishAVideo = asyncHandler(async (req, res) => {
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: get video by id
+     // Validate videoId
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+        throw new ApiError(400, "Invalid video ID");
+    }
+    
+    // Find video
+    const video = await Video.findById(videoId)
+        .populate('owner', 'username avatar fullName')
+        .select('-__v');
+    
+    if (!video) {
+        throw new ApiError(404, "Video not found");
+    }
+    
+    // Optional: Check if video is published
+    if (!video.isPublished) {
+        throw new ApiError(403, "Video is not available");
+    }
+    
+    // Increment view count asynchronously (non-blocking)
+    Video.findByIdAndUpdate(videoId, { $inc: { views: 1 } }).exec();
+    
+    return res.status(200).json(
+        new ApiResponse(200, video, "Video retrieved successfully")
+    );
 })
 
 const updateVideo = asyncHandler(async (req, res) => {
