@@ -291,16 +291,161 @@ const getVideoById = asyncHandler(async (req, res) => {
 const updateVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: update video details like title, description, thumbnail
+    const { title, description } = req.body;
+    
+    // Validate videoId
+    if (!videoId || !mongoose.Types.ObjectId.isValid(videoId)) {
+        throw new ApiError(400, "Invalid video ID");
+    }
+    
+    // Check if at least one field is provided for update
+    if (!title && !description && !req.file) {
+        throw new ApiError(400, "At least one field (title, description, or thumbnail) is required for update");
+    }
+    
+    // Find the video first to check ownership
+    const video = await Video.findById(videoId);
+    if (!video) {
+        throw new ApiError(404, "Video not found");
+    }
+    
+    // Check if the user owns the video (assuming you have user authentication)
+    if (video.owner.toString() !== req.user?._id.toString()) {
+        throw new ApiError(403, "You don't have permission to update this video");
+    }
+    
+    // Prepare update object
+    const updateFields = {};
+    
+    // Update title if provided
+    if (title && title.trim()) {
+        updateFields.title = title.trim();
+    }
+    
+    // Update description if provided
+    if (description !== undefined) {
+        updateFields.description = description.trim();
+    }
+    
+    // Handle thumbnail upload if provided
+    if (req.file) {
+        try {
+            // Delete old thumbnail from cloudinary if exists
+            if (video.thumbnail?.public_id) {
+                await deleteFromCloudinary(video.thumbnail.public_id);
+            }
+            
+            // Upload new thumbnail to cloudinary
+            const thumbnailLocalPath = req.file.path;
+            const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+            
+            if (!thumbnail) {
+                throw new ApiError(400, "Failed to upload thumbnail");
+            }
+            
+            updateFields.thumbnail = {
+                url: thumbnail.url,
+                public_id: thumbnail.public_id
+            };
+            
+        } catch (error) {
+            throw new ApiError(500, "Error uploading thumbnail: " + error.message);
+        }
+    }
+    
+    // Update the video with new fields
+    const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
+        { $set: updateFields },
+        { 
+            new: true,
+            runValidators: true 
+        }
+    ).populate("owner", "username fullName avatar");
+    
+    if (!updatedVideo) {
+        throw new ApiError(500, "Failed to update video");
+    }
+    
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                updatedVideo,
+                "Video updated successfully"
+            )
+        );
 
 })
 
 const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: delete video
+    // Validate videoId
+    if (!videoId || !mongoose.Types.ObjectId.isValid(videoId)) {
+        throw new ApiError(400, "Invalid video ID");
+    }
+    // Find the video first to check ownership
+    const video = await Video.findById(videoId);
+    if (!video) {
+        throw new ApiError(404, "Video not found");
+    }   
+    // Check if the user owns the video (assuming you have user authentication)
+    if (video.owner.toString() !== req.user?._id.toString()) {
+        throw new ApiError(403, "You don't have permission to delete this video");
+    }
+    // Delete video from Cloudinary
+    if (video.cloudinaryId) {
+        try {
+            await deleteFromCloudinary(video.cloudinaryId, "video");
+        } catch (error) {
+        //console.error("Failed to delete from Cloudinary:", error);
+            throw new ApiError(500, "Failed to delete video from cloudinary");
+        }
+    }
+    if (video.thumbnailCloudinaryId) {
+        await deleteFromCloudinary(video.thumbnailCloudinaryId, "image");
+    }   
+    // Delete video record from database
+    await Video.findByIdAndDelete(videoId);
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Video deleted successfully"));
+
+
 })
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params
+    
+    // Validate videoId
+    if (!videoId || !mongoose.Types.ObjectId.isValid(videoId)) {
+        throw new ApiError(400, "Invalid video ID");
+    }
+    // Find the video first to check ownership
+    const video = await Video.findById(videoId);
+    if (!video) {
+        throw new ApiError(404, "Video not found");
+    }
+    // Check if the user owns the video (assuming you have user authentication)
+    if (video.owner.toString() !== req.user?._id.toString()) {
+        throw new ApiError(403, "You don't have permission to update this video");
+    }
+    // Toggle publish status
+    video.isPublished = !video.isPublished;
+    await video.save();
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                { isPublished: video.isPublished },
+                `Video is now ${video.isPublished ? "published" : "unpublished"}`
+            )
+        );
+
+
 })
 
 export {
