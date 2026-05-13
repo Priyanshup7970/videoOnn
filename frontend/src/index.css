@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #9333ea;
+}
+
+@layer base {
+  body {
+    background-color: #09090b;
+    color: #fff;
+    font-family: system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
